@@ -11,7 +11,7 @@ def load_data(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
-    # Initialize counters for annotations
+    # Initialize counters for annotations (9 models total)
     annotation_counts = {
         'Sonnet': Counter(),
         'Llama318B': Counter(),
@@ -46,6 +46,8 @@ def load_data(filepath):
     # Print annotation statistics
     print("\nAnnotation Statistics:")
     print("=" * 50)
+
+    # TODO plot out data distribution here somewhere
     for model in annotation_counts:
         print(f"\n{model} Model Results:")
         print("-" * 30)
@@ -63,9 +65,30 @@ def main():
         df = load_data(filepath)
         print(f"\nTotal conversations: {len(df)}")
         
+        # NOTE Josh - could use [TUTOR] & [STUDENT] Tokens
+        # Could Use Math Embedding with a Concat of text
+        # Could use Ensemble methods with other models
+        # Could train on other Math problems
+        #
+
+        # TODO Organize data
+        # Conversation Id
+        # xxxxxxx Conversation History
+        # Tutor text
+        # Student text
+        # Model Name
+        # Model Response
+
+        # Mistake Identification (y1)
+        # Mistake Location (y2)
+        # Mistake Guidance (y3)
+        # Actionability (y4)
+
+        # TODO add the 4 labels to the conversation
+
         # Save to CSV
-        # df.to_csv('parsed_conversations.csv', index=False)
-        # print("\nData saved to parsed_conversations.csv")
+        #df.to_csv('parsed_conversations.csv', index=False)
+        #print("\nData saved to parsed_conversations.csv")
         
     except FileNotFoundError:
         print(f"Error: Could not find file {filepath}")
