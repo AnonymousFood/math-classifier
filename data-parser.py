@@ -101,7 +101,7 @@ def create_metric_plot(metric, mp, names, saveLocation):
         plt.text(x[i] + bar_width, no_vals[i] + yMax * 0.0075, str(no_vals[i]), ha='center')
 
     # Add labels and legend
-    plt.xlabel('Feedback Metric')
+    plt.xlabel('LLM Tutor Name')
     plt.ylabel('Frequency')
     plt.title(f'{metric} Feedback Metric Ratings')
     plt.xticks(x, names, rotation=15)
@@ -198,21 +198,31 @@ def load_data(filepath):
 
 
     total_metric_ratings_freq = {}
+    total_model_ratings_freq = {}
     model_set = set([])
-    for key in model_metrics:
 
-        new_key = (key[1], key[2]) # don't include the model
+    for key in model_metrics:
+        new_key1 = (key[1], key[2]) # don't include the model
+        new_key2 = (key[0], key[2]) # don't include the model
         model_set.add(key[0])
         #print(new_key)
-        if new_key not in total_metric_ratings_freq:
-            total_metric_ratings_freq[new_key] = 0
+        if new_key1 not in total_metric_ratings_freq:
+            total_metric_ratings_freq[new_key1] = 0
+
+        if new_key2 not in total_model_ratings_freq:
+            total_model_ratings_freq[new_key2] = 0
 
         # Combine stats from all models into overall distribution
-        total_metric_ratings_freq[new_key] += model_metrics[key]
+        total_metric_ratings_freq[new_key1] += model_metrics[key]
+        total_model_ratings_freq[new_key2] += model_metrics[key]
 
 
     print('done')
     #print(len(metric_rating), len(metric_ratings_freq))
+
+    ##########
+    # Make Total Feedback Metric Plot
+    ##########
 
     names = ['Mistake_Identification', 'Mistake_Location', 'Providing_Guidance', 'Actionability']
     x = np.arange(len(names)) * 1.5
@@ -222,6 +232,8 @@ def load_data(filepath):
     yes_vals = [total_metric_ratings_freq[(metric, 'Yes')] for metric in names]
     some_vals = [total_metric_ratings_freq[(metric, 'To some extent')] for metric in names]
     no_vals = [total_metric_ratings_freq[(metric, 'No')] for metric in names]
+
+    plt.figure(figsize=(6.4, 4.8))
 
     # Plot grouped bars
     plt.bar(x - bar_width, yes_vals, width=bar_width, label='Yes', color='green')
@@ -254,6 +266,50 @@ def load_data(filepath):
         model_img_paths.append(f"figures/models/{model}_metric_ratings_plt.png")
         create_model_plot(model, model_metrics, names, model_img_paths[-1])
 
+
+    ##########
+    # Make Total Feedback Model Plot
+    ##########
+
+
+    x = np.arange(len(model_set)) * 1.5
+    bar_width = 0.35
+
+    # Get values from your data source
+    yes_vals = [total_model_ratings_freq[(model, 'Yes')] for model in model_set]
+    some_vals = [total_model_ratings_freq[(model, 'To some extent')] for model in model_set]
+    no_vals = [total_model_ratings_freq[(model, 'No')] for model in model_set]
+
+    plt.figure(figsize=(12, 6))
+
+    # Plot grouped bars
+    plt.bar(x - bar_width, yes_vals, width=bar_width, label='Yes', color='green')
+    plt.bar(x, some_vals, width=bar_width, label='To some extent', color='orange')
+    plt.bar(x + bar_width, no_vals, width=bar_width, label='No', color='red')
+
+    yMax = 0
+    for i in range(len(x)):
+        yMax = max(yMax, yes_vals[i], some_vals[i], no_vals[i])
+
+    for i in range(len(x)):
+        plt.text(x[i] - bar_width, yes_vals[i] + yMax * 0.0075, str(yes_vals[i]), ha='center')
+        plt.text(x[i], some_vals[i] + yMax * 0.0075, str(some_vals[i]), ha='center')
+        plt.text(x[i] + bar_width, no_vals[i] + yMax * 0.0075, str(no_vals[i]), ha='center')
+
+    # Add labels and legend
+    plt.xlabel('LLM Tutor Name')
+    plt.ylabel('Frequency')
+    plt.title('Feedback LLM Tutor Ratings')
+    plt.xticks(x, model_set, rotation=15)
+    plt.legend()
+
+    plt.tight_layout()
+
+    plt.savefig("figures/total_model_ratings_plt.png")
+    plt.clf()
+
+
+    
     metric_img_paths = []
     for name in names:
         metric_img_paths.append(f"figures/metrics/{name}_metric_ratings_plt.png")
