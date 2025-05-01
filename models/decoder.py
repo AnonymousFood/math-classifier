@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math, copy, time
 import matplotlib.pyplot as plt
-%matplotlib inline
 
 class Decoder(nn.Module):
     def __init__(self, layer, N):

@@ -1,4 +1,4 @@
-# LLM Tutor Improvment
+# LLM Tutor Improvement
 
 ### How is the data arranged
 
