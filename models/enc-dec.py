@@ -257,7 +257,7 @@ def train_model_for_metric(metric_name, data_path):
         weight_decay=0.01,
         evaluation_strategy="epoch",
         save_strategy="no",
-        load_best_model_at_end=True,
+        load_best_model_at_end=False,
         metric_for_best_model="f1_weighted",
         push_to_hub=False,
         predict_with_generate=True,

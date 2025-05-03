@@ -4,16 +4,15 @@ import numpy as np
 import os
 from transformers import (
     AutoTokenizer, 
-    T5ForConditionalGeneration,
-    Seq2SeqTrainingArguments,
-    Seq2SeqTrainer,
-    DataCollatorWithPadding,
-    DataCollatorForSeq2Seq
+    AutoModelForSequenceClassification,
+    TrainingArguments,
+    Trainer,
+    DataCollatorWithPadding
 )
 from sklearn.metrics import accuracy_score, f1_score
 from datasets import Dataset, DatasetDict
 import evaluate
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split
@@ -21,7 +20,7 @@ from sklearn.model_selection import train_test_split
 # Constants
 MAX_LEN = 512
 BATCH_SIZE = 16
-EPOCHS = 1
+EPOCHS = 5
 LEARNING_RATE = 2e-5
 METRICS = ['Mistake_Identification', 'Mistake_Location', 'Providing_Guidance', 'Actionability']
 
@@ -149,7 +148,7 @@ def train_model_for_metric(metric_name, data_path):
         return None
     
     # Initialize model 
-    model = T5ForConditionalGeneration.from_pretrained(
+    model = AutoModelForSequenceClassification.from_pretrained(
         "bert-base-uncased", 
         num_labels=3, 
         id2label=id2label, 
@@ -157,28 +156,26 @@ def train_model_for_metric(metric_name, data_path):
     )
     
     # Training arguments
-    output_dir = f"models/t5_{metric_name.lower()}_model"
-    training_args = Seq2SeqTrainingArguments(
+    output_dir = f"models/{metric_name.lower()}_model"
+    training_args = TrainingArguments(
         output_dir=output_dir,
         learning_rate=LEARNING_RATE,
         per_device_train_batch_size=BATCH_SIZE,
         per_device_eval_batch_size=BATCH_SIZE,
         num_train_epochs=EPOCHS,
         weight_decay=0.01,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="no",
-        load_best_model_at_end=True,
+        load_best_model_at_end=False,
         metric_for_best_model="f1_weighted",
         push_to_hub=False,
-        predict_with_generate=True,
-        generation_max_length=8,
     )
     
     # Create data collator for dynamic padding
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer)
+    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
     
-    # Initialize trainer with Seq2SeqTrainer
-    trainer = Seq2SeqTrainer(
+    # Initialize trainer
+    trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=tokenized_datasets["train"],
@@ -218,6 +215,7 @@ def train_model_for_metric(metric_name, data_path):
         y_true=labels, 
         y_pred=preds
     )
+    print(cm)
     
     # Plot confusion matrix
     plt.figure(figsize=(8, 6))
@@ -272,7 +270,7 @@ def main():
     # Data path
     data_path = "data/clean_parsed_conversations.csv"
     
-    # Train models for selected metrics (takes a little over 2min per epoch with my 3060 GPU)
+    # Train models for selected metrics (takes a little over 2 minutes per metric with my 3060 GPU)
     selected_metrics = ['Mistake_Identification', 'Actionability']
     
     model_paths = {}
