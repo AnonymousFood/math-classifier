@@ -14,6 +14,7 @@ from transformers import (
 from sklearn.metrics import accuracy_score, f1_score
 from datasets import Dataset, DatasetDict
 import evaluate
+
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.metrics import classification_report
 import matplotlib.pyplot as plt
@@ -73,10 +74,17 @@ def load_and_prepare_data(config, data_path, tokenizer, metric_name):
     value_counts = df[metric_name].value_counts()
     print(value_counts)
     
-    # Train/validation split
+    # Stratified split
     train_size = int(0.8 * len(df))
-    train_df = df.iloc[:train_size]
-    val_df = df.iloc[train_size:]
+    train_indices, val_indices = train_test_split(
+        np.arange(len(df)),
+        test_size=0.2,
+        stratify=df[metric_name],
+        random_state=42
+    )
+
+    train_df = df.iloc[train_indices]
+    val_df = df.iloc[val_indices]
     
     # Process train data
     for _, row in train_df.iterrows():
@@ -201,6 +209,50 @@ def train_model_for_metric(config, metric_name, data_path):
     print(f"Evaluation results for {metric_name}:")
     print(eval_result)
     
+    # Get predictions for detailed reporting
+    val_predictions = trainer.predict(tokenized_datasets["validation"])
+    preds = np.argmax(val_predictions.predictions, axis=1)
+    labels = val_predictions.label_ids
+    
+    # Generate and print classification report
+    print(f"\n=== Classification Report for {metric_name} ===")
+    report = classification_report(
+        y_true=labels, 
+        y_pred=preds,
+        target_names=list(id2label.values()),
+        digits=4
+    )
+    print(report)
+    
+    # Generate confusion matrix
+    print(f"\n=== Confusion Matrix for {metric_name} ===")
+    cm = confusion_matrix(
+        y_true=labels, 
+        y_pred=preds
+    )
+    print(cm)
+    
+    # Plot confusion matrix
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(
+        cm, 
+        annot=True, 
+        fmt='d', 
+        cmap='Blues', 
+        xticklabels=list(id2label.values()), 
+        yticklabels=list(id2label.values())
+    )
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.title(f'Confusion Matrix - {metric_name}')
+    plt.tight_layout()
+    
+    # Save the confusion matrix plot
+    cm_path = f"figures/confusion-matrices/enc_{metric_name.lower()}_cm.png"
+    plt.savefig(cm_path)
+    plt.close()
+    print(f"Confusion matrix saved to {cm_path}")
+    
     # Save the model
     model_path = f"models/{metric_name.lower()}_model_final"
     trainer.save_model(model_path)
@@ -246,7 +298,7 @@ def main():
     # Data path
     data_path = "data/clean_parsed_conversations.csv"
     
-    # Train models for selected metrics (takes a little over 6 minutes per metric with my 3060 GPU)
+    # Train models for selected metrics (takes a little over 2 minutes per metric with my 3060 GPU)
     selected_metrics = ['Mistake_Identification', 'Actionability']
 
     # Mass testing file configuration

@@ -1,0 +1,22 @@
+=== Evaluation Results for T5 Mistake_Identification Model ===
+
+Accuracy: 0.8750
+F1 Weighted: 0.8466
+F1 Macro: 0.6490
+
+=== Classification Report ===
+
+              precision    recall  f1-score   support
+
+          No     0.7500    0.2432    0.3673        74
+         Yes     0.8814    0.9858    0.9306       422
+
+    accuracy                         0.8750       496
+   macro avg     0.8157    0.6145    0.6490       496
+weighted avg     0.8618    0.8750    0.8466       496
+
+
+=== Confusion Matrix ===
+
+[[ 18  56]
+ [  6 416]]

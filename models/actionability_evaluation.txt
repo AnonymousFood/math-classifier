@@ -1,0 +1,22 @@
+=== Evaluation Results for T5 Actionability Model ===
+
+Accuracy: 0.7016
+F1 Weighted: 0.6326
+F1 Macro: 0.5331
+
+=== Classification Report ===
+
+              precision    recall  f1-score   support
+
+          No     0.6579    0.1562    0.2525       160
+         Yes     0.7052    0.9613    0.8136       336
+
+    accuracy                         0.7016       496
+   macro avg     0.6816    0.5588    0.5331       496
+weighted avg     0.6900    0.7016    0.6326       496
+
+
+=== Confusion Matrix ===
+
+[[ 25 135]
+ [ 13 323]]

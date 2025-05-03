@@ -307,8 +307,6 @@ def load_data(filepath):
 
     plt.savefig("figures/total_model_ratings_plt.png")
     plt.clf()
-
-
     
     metric_img_paths = []
     for name in names:
