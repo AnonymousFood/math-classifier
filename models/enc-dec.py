@@ -36,11 +36,10 @@ def load_and_prepare_data(data_path, tokenizer, metric_name):
     df = pd.read_csv(data_path)
     print(f"Loaded dataframe with shape: {df.shape}")
     
-    # Create label mappings
-    id2label = {0: "No", 1: "To some extent", 2: "Yes"}
-    label2id = {"No": 0, "To some extent": 1, "Yes": 2}
+    # Update to binary classification labels
+    id2label = {0: "No", 2: "Yes"}
+    label2id = {"No": 0, "Yes": 2}
     
-    # Define label conversion function
     def get_label(row):
         if metric_name not in row:
             return 0
@@ -158,7 +157,7 @@ def load_and_prepare_data(data_path, tokenizer, metric_name):
     return tokenized_datasets, id2label, label2id
 
 def postprocess_text(preds, labels):
-    """Postprocess generated text and reference labels"""
+    # Strip the predictions and labels
     preds = [pred.strip() for pred in preds]
     labels = [[label.strip()] for label in labels]
     
@@ -190,14 +189,9 @@ def compute_metrics(eval_preds):
     # Normalize predictions to match exactly one of the expected values
     def normalize_prediction(pred):
         pred = pred.lower()
-        if "no" in pred and "some" not in pred:
+        if "no" in pred and "some" not in pred and "yes" not in pred:
             return "No"
-        elif "some" in pred or "extent" in pred:
-            return "To some extent"
-        elif "yes" in pred:
-            return "Yes"
         else:
-            # Default to most common class if no match
             return "Yes"
     
     normalized_preds = [normalize_prediction(pred) for pred in decoded_preds]
@@ -223,14 +217,13 @@ def compute_metrics(eval_preds):
     }
 
 def train_model_for_metric(metric_name, data_path):
-    """Train a T5 model for a specific metric"""
     global tokenizer, all_decoded_preds, all_decoded_labels
     all_decoded_preds, all_decoded_labels = [], []
     
     print(f"\n=== Training T5 model for {metric_name} ===")
     
     # Initialize tokenizer
-    model_name = "t5-base"  # Using T5-base for a good balance of performance and size
+    model_name = "t5-base"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     
     # Load and prepare data
@@ -239,7 +232,7 @@ def train_model_for_metric(metric_name, data_path):
         print(f"Skipping {metric_name} due to data loading issues")
         return None
     
-    # Initialize T5 model for conditional generation
+    # Initialize T5 model for classification (conditional generation)
     model = T5ForConditionalGeneration.from_pretrained(model_name)
     
     # Ensure output directories exist
@@ -255,7 +248,7 @@ def train_model_for_metric(metric_name, data_path):
         per_device_eval_batch_size=BATCH_SIZE,
         num_train_epochs=EPOCHS,
         weight_decay=0.01,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="no",
         load_best_model_at_end=False,
         metric_for_best_model="f1_weighted",
@@ -302,6 +295,7 @@ def train_model_for_metric(metric_name, data_path):
         y_true=label_ids, 
         y_pred=pred_ids,
         target_names=list(id2label.values()),
+        labels=[0, 2],
         digits=4,
         zero_division=0
     )
@@ -322,7 +316,7 @@ def train_model_for_metric(metric_name, data_path):
         annot=True, 
         fmt='d', 
         cmap='Blues', 
-        xticklabels=list(id2label.values()), 
+        xticklabels=list(id2label.values()),
         yticklabels=list(id2label.values())
     )
     plt.xlabel('Predicted')
@@ -338,9 +332,6 @@ def train_model_for_metric(metric_name, data_path):
     
     # Save the model
     model_path = f"models/t5_{metric_name.lower()}_model_final"
-    # trainer.save_model(model_path)
-    # tokenizer.save_pretrained(model_path)
-    # print(f"T5 model for {metric_name} saved to {model_path}")
     
     # Save evaluation results to a text file
     results_path = f"models/{metric_name.lower()}_evaluation.txt"
@@ -370,6 +361,7 @@ def main():
     
     # Train models for selected metrics
     # Note: T5 training will be slower than BERT due to the encoder-decoder architecture
+    # yep, takes about 3 minutes per epoch on my 3060
     selected_metrics = ['Mistake_Identification', 'Actionability']
     
     model_paths = {}
