@@ -1,0 +1,9 @@
+#model_name: meta-llama/Llama-2-7b-hf
+model_name: gpt2
+
+max_len: 256
+batch_size: 2
+epochs: 1
+learning_rate: !!float 2e-5
+
+index: 4

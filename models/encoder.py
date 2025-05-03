@@ -1,3 +1,5 @@
+import argparse
+import yaml
 import torch
 import pandas as pd
 import numpy as np
@@ -12,15 +14,20 @@ from transformers import (
 from sklearn.metrics import accuracy_score, f1_score
 from datasets import Dataset, DatasetDict
 import evaluate
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import classification_report
+import matplotlib.pyplot as plt
+
 
 # Constants
-MAX_LEN = 512
-BATCH_SIZE = 16
-EPOCHS = 5
-LEARNING_RATE = 2e-5
+#MAX_LEN = 512
+#MAX_LEN = 0
+#BATCH_SIZE = 16
+#EPOCHS = 5
+#LEARNING_RATE = 2e-5
 METRICS = ['Mistake_Identification', 'Mistake_Location', 'Providing_Guidance', 'Actionability'] # can only do first 4 metrics for now
 
-def load_and_prepare_data(data_path, tokenizer, metric_name):
+def load_and_prepare_data(config, data_path, tokenizer, metric_name):
     print(f"Loading data from: {data_path}")
     df = pd.read_csv(data_path)
     print(f"Loaded dataframe with shape: {df.shape}")
@@ -101,7 +108,8 @@ def load_and_prepare_data(data_path, tokenizer, metric_name):
             examples["text"],
             padding="max_length",
             truncation=True,
-            max_length=MAX_LEN
+            #max_length=MAX_LEN
+            max_length=config['max_len']
         )
     
     tokenized_datasets = dataset_dict.map(tokenize_function, batched=True)
@@ -123,40 +131,50 @@ def compute_metrics(eval_pred):
         "f1_macro": f1_macro
     }
 
-def train_model_for_metric(metric_name, data_path):
+def train_model_for_metric(config, metric_name, data_path):
     """Train a model for a specific metric"""
     print(f"\n=== Training model for {metric_name} ===")
     
     # Initialize tokenizer
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+    tokenizer = AutoTokenizer.from_pretrained(config['model_name'])
     
     # Load and prepare data
-    tokenized_datasets, id2label, label2id = load_and_prepare_data(data_path, tokenizer, metric_name)
+    tokenized_datasets, id2label, label2id = load_and_prepare_data(config, data_path, tokenizer, metric_name)
     if tokenized_datasets is None:
         print(f"Skipping {metric_name} due to data loading issues")
         return None
     
     # Initialize model 
     model = AutoModelForSequenceClassification.from_pretrained(
-        "bert-base-uncased", 
+        #"bert-base-uncased", 
+        config['model_name'], 
         num_labels=3, 
         id2label=id2label, 
         label2id=label2id
     )
     
     # Training arguments
-    output_dir = f"models/{metric_name.lower()}_model"
+    output_dir = f"models/{metric_name.lower()}_model{config['index']}"
     training_args = TrainingArguments(
         output_dir=output_dir,
-        learning_rate=LEARNING_RATE,
-        per_device_train_batch_size=BATCH_SIZE,
-        per_device_eval_batch_size=BATCH_SIZE,
-        num_train_epochs=EPOCHS,
-        weight_decay=0.01,
-        evaluation_strategy="epoch",
-        save_strategy="epoch",
+        #learning_rate=LEARNING_RATE,
+        #per_device_train_batch_size=BATCH_SIZE,
+        #per_device_eval_batch_size=BATCH_SIZE,
+        #num_train_epochs=EPOCHS,
+        #weight_decay=0.01,
+        learning_rate=config['learning_rate'],
+        per_device_train_batch_size=config['batch_size'],
+        per_device_eval_batch_size=config['batch_size'],
+        num_train_epochs=config['epochs'],
+        weight_decay=config['weight_decay'],
+        #evaluation_strategy="epoch",
+        #eval_strategy="epoch",
+        #save_strategy="epoch",
+        eval_strategy="steps",
+        save_total_limit=1,
         load_best_model_at_end=True,
         metric_for_best_model="f1_weighted",
+        greater_is_better=True,
         push_to_hub=False,
     )
     
@@ -188,6 +206,32 @@ def train_model_for_metric(metric_name, data_path):
     trainer.save_model(model_path)
     tokenizer.save_pretrained(model_path)
     print(f"Model for {metric_name} saved to {model_path}")
+
+    # Generate confusion matrix
+    pred_output = trainer.predict(trainer.eval_dataset)
+    y_pred = np.argmax(pred_output.predictions, axis=1)
+    y_true = pred_output.label_ids
+    cm = confusion_matrix(y_true, y_pred)
+    id2label = {0: "No", 1: "To some extent", 2: "Yes"}
+    unique_labels = sorted(np.unique(np.concatenate([y_true, y_pred])))
+    labels = list(id2label.values())
+    labels = [id2label[i] for i in unique_labels]
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
+    disp.plot(cmap='Blues', xticks_rotation=45)
+    plt.title("Confusion Matrix")
+    plt.tight_layout()
+    plt.savefig(f"figures/tuned/confusion_matrix_{metric_name}_{config['index']}.png")
+
+    # Generate classification report
+    report = classification_report(
+        y_true,
+        y_pred,
+        target_names=labels,
+        digits=4
+    )
+
+    with open(f"figures/tuned/classification_report_{metric_name}_{config['index']}.txt", "w") as f:
+        f.write(report)
     
     return model_path
 
@@ -204,15 +248,27 @@ def main():
     
     # Train models for selected metrics (takes a little over 6 minutes per metric with my 3060 GPU)
     selected_metrics = ['Mistake_Identification', 'Actionability']
+
+    # Mass testing file configuration
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, required=True, help='path to the config')
+    args = parser.parse_args()
+
+    with open(args.config, 'r') as stream:
+        config = yaml.safe_load(stream)
+
     
     model_paths = {}
     for metric in selected_metrics:
-        model_path = train_model_for_metric(metric, data_path)
+        model_path = train_model_for_metric(config, metric, data_path)
         if model_path:
             model_paths[metric] = model_path
     
     print("\n=== Training Summary ===")
     print(f"Successfully trained models for: {', '.join(model_paths.keys())}")
+    print("Model Hyperparams")
+    for key, value in config.items():
+        print(f"{key}: {value}")
 
 if __name__ == "__main__":
     main()
