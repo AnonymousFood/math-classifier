@@ -1,0 +1,13 @@
+#model_name: bert-base-uncased
+#model_name: bert-base-cased
+#model_name: bert-large-uncased
+model_name: roberta-large
+
+
+max_len: 512
+batch_size: 32
+epochs: 12
+learning_rate: !!float 1e-5
+weight_decay: !!float 1e-2
+
+index: 0
