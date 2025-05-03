@@ -4,21 +4,26 @@ import numpy as np
 import os
 from transformers import (
     AutoTokenizer, 
-    AutoModelForSequenceClassification,
-    TrainingArguments,
-    Trainer,
-    DataCollatorWithPadding
+    T5ForConditionalGeneration,
+    Seq2SeqTrainingArguments,
+    Seq2SeqTrainer,
+    DataCollatorWithPadding,
+    DataCollatorForSeq2Seq
 )
 from sklearn.metrics import accuracy_score, f1_score
 from datasets import Dataset, DatasetDict
 import evaluate
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
 
 # Constants
 MAX_LEN = 512
 BATCH_SIZE = 16
-EPOCHS = 5
+EPOCHS = 1
 LEARNING_RATE = 2e-5
-METRICS = ['Mistake_Identification', 'Mistake_Location', 'Providing_Guidance', 'Actionability'] # can only do first 4 metrics for now
+METRICS = ['Mistake_Identification', 'Mistake_Location', 'Providing_Guidance', 'Actionability']
 
 def load_and_prepare_data(data_path, tokenizer, metric_name):
     print(f"Loading data from: {data_path}")
@@ -66,10 +71,17 @@ def load_and_prepare_data(data_path, tokenizer, metric_name):
     value_counts = df[metric_name].value_counts()
     print(value_counts)
     
-    # Train/validation split
+    # Stratified split
     train_size = int(0.8 * len(df))
-    train_df = df.iloc[:train_size]
-    val_df = df.iloc[train_size:]
+    train_indices, val_indices = train_test_split(
+        np.arange(len(df)),
+        test_size=0.2,
+        stratify=df[metric_name],
+        random_state=42
+    )
+
+    train_df = df.iloc[train_indices]
+    val_df = df.iloc[val_indices]
     
     # Process train data
     for _, row in train_df.iterrows():
@@ -137,7 +149,7 @@ def train_model_for_metric(metric_name, data_path):
         return None
     
     # Initialize model 
-    model = AutoModelForSequenceClassification.from_pretrained(
+    model = T5ForConditionalGeneration.from_pretrained(
         "bert-base-uncased", 
         num_labels=3, 
         id2label=id2label, 
@@ -145,8 +157,8 @@ def train_model_for_metric(metric_name, data_path):
     )
     
     # Training arguments
-    output_dir = f"models/{metric_name.lower()}_model"
-    training_args = TrainingArguments(
+    output_dir = f"models/t5_{metric_name.lower()}_model"
+    training_args = Seq2SeqTrainingArguments(
         output_dir=output_dir,
         learning_rate=LEARNING_RATE,
         per_device_train_batch_size=BATCH_SIZE,
@@ -154,17 +166,19 @@ def train_model_for_metric(metric_name, data_path):
         num_train_epochs=EPOCHS,
         weight_decay=0.01,
         evaluation_strategy="epoch",
-        save_strategy="epoch",
+        save_strategy="no",
         load_best_model_at_end=True,
         metric_for_best_model="f1_weighted",
         push_to_hub=False,
+        predict_with_generate=True,
+        generation_max_length=8,
     )
     
     # Create data collator for dynamic padding
-    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer)
     
-    # Initialize trainer
-    trainer = Trainer(
+    # Initialize trainer with Seq2SeqTrainer
+    trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
         train_dataset=tokenized_datasets["train"],
@@ -183,11 +197,67 @@ def train_model_for_metric(metric_name, data_path):
     print(f"Evaluation results for {metric_name}:")
     print(eval_result)
     
+    # Get predictions for detailed reporting
+    val_predictions = trainer.predict(tokenized_datasets["validation"])
+    preds = np.argmax(val_predictions.predictions, axis=1)
+    labels = val_predictions.label_ids
+    
+    # Generate and print classification report
+    print(f"\n=== Classification Report for {metric_name} ===")
+    report = classification_report(
+        y_true=labels, 
+        y_pred=preds,
+        target_names=list(id2label.values()),
+        digits=4
+    )
+    print(report)
+    
+    # Generate confusion matrix
+    print(f"\n=== Confusion Matrix for {metric_name} ===")
+    cm = confusion_matrix(
+        y_true=labels, 
+        y_pred=preds
+    )
+    
+    # Plot confusion matrix
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(
+        cm, 
+        annot=True, 
+        fmt='d', 
+        cmap='Blues', 
+        xticklabels=list(id2label.values()), 
+        yticklabels=list(id2label.values())
+    )
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.title(f'Confusion Matrix - {metric_name}')
+    plt.tight_layout()
+    
+    # Save the confusion matrix plot
+    cm_path = f"figures/confusion-matrices/enc_{metric_name.lower()}_cm.png"
+    plt.savefig(cm_path)
+    plt.close()
+    print(f"Confusion matrix saved to {cm_path}")
+    
     # Save the model
     model_path = f"models/{metric_name.lower()}_model_final"
-    trainer.save_model(model_path)
-    tokenizer.save_pretrained(model_path)
-    print(f"Model for {metric_name} saved to {model_path}")
+    # trainer.save_model(model_path)
+    # tokenizer.save_pretrained(model_path)
+    # print(f"Model for {metric_name} saved to {model_path}")
+    
+    # Save evaluation results to a text file
+    results_path = f"models/{metric_name.lower()}_evaluation.txt"
+    with open(results_path, 'w') as f:
+        f.write(f"=== Evaluation Results for {metric_name} ===\n\n")
+        f.write(f"Accuracy: {eval_result['eval_accuracy']:.4f}\n")
+        f.write(f"F1 Weighted: {eval_result['eval_f1_weighted']:.4f}\n")
+        f.write(f"F1 Macro: {eval_result['eval_f1_macro']:.4f}\n\n")
+        f.write(f"=== Classification Report ===\n\n")
+        f.write(report)
+        f.write("\n\n=== Confusion Matrix ===\n\n")
+        f.write(str(cm))
+    print(f"Detailed evaluation results saved to {results_path}")
     
     return model_path
 
@@ -202,7 +272,7 @@ def main():
     # Data path
     data_path = "data/clean_parsed_conversations.csv"
     
-    # Train models for selected metrics (takes a little over 6 minutes per metric with my 3060 GPU)
+    # Train models for selected metrics (takes a little over 2min per epoch with my 3060 GPU)
     selected_metrics = ['Mistake_Identification', 'Actionability']
     
     model_paths = {}
