@@ -36,7 +36,6 @@ def load_and_prepare_data(data_path, tokenizer, metric_name):
     df = pd.read_csv(data_path)
     print(f"Loaded dataframe with shape: {df.shape}")
     
-    # Update to binary classification labels
     id2label = {0: "No", 2: "Yes"}
     label2id = {"No": 0, "Yes": 2}
     
@@ -93,14 +92,14 @@ def load_and_prepare_data(data_path, tokenizer, metric_name):
     print(f"Validation set class distribution:")
     print(val_df[metric_name].value_counts())
     
-    # Process train data with T5-friendly format
+    # Process train data with T5 formatting
     prefix = f"classify {metric_name}: "
     
     for _, row in train_df.iterrows():
         conversation = str(row['conversation_history'])
         response = str(row['tutor_response'])
         
-        # For T5, we format as a question-answer pair
+        # For T5, format as question-answer pair
         input_text = prefix + f"{conversation} [SEP] {response}"
         
         # Convert the label ID to a text label

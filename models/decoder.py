@@ -18,7 +18,6 @@ from datasets import Dataset, DatasetDict
 from dotenv import load_dotenv
 from huggingface_hub import login
 
-
 from sklearn.metrics import accuracy_score, f1_score
 from datasets import Dataset, DatasetDict
 import evaluate
@@ -212,7 +211,7 @@ def train_model_for_metric(config, metric_name, data_path):
         logging_steps=100,
         logging_first_step=True,
         report_to="all",
-        eval_steps=200, # Evaluate every 20 steps
+        eval_steps=200,
         logging_strategy="steps"
     )
 
@@ -296,10 +295,8 @@ def train_model_for_metric(config, metric_name, data_path):
     # Before saving the confusion matrix
     cm_path = f"figures/confusion-matrices/dec_{metric_name.lower()}_cm.png"
 
-    # Make sure parent directory exists
+    # Make sure parent directory exists and save
     os.makedirs(os.path.dirname(cm_path), exist_ok=True)
-
-    # Then save the plot
     plt.savefig(cm_path)
 
     os.makedirs("figures/tuned", exist_ok=True)

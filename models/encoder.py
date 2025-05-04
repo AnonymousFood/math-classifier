@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 #BATCH_SIZE = 16
 #EPOCHS = 5
 #LEARNING_RATE = 2e-5
-METRICS = ['Mistake_Identification', 'Mistake_Location', 'Providing_Guidance', 'Actionability'] # can only do first 4 metrics for now
+METRICS = ['Mistake_Identification', 'Mistake_Location', 'Providing_Guidance', 'Actionability']
 
 def load_and_prepare_data(config, data_path, tokenizer, metric_name):
     print(f"Loading data from: {data_path}")

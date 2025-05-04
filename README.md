@@ -16,13 +16,7 @@ This is because these two parts of the conversation are different enough to expl
 
 ### Data Structure Used:
 
-Conversation History: [(Tutor Q text, Student A text), (Tutor text, Student text), ...]
-LLM Tutor Response
+Trained 3 transformer models (BERT, T5, GPT-2) to predict these 2 metrics:
 
-Mistake Identification (y1), (evaluated by accuracy and Macro F1)
-Mistake Location (y2), (evaluated by accuracy and Macro F1)
-Mistake Guidance (y3), (evaluated by accuracy and Macro F1)
-Actionability (y4), (evaluated by accuracy and Macro F1)
-LLM Tutor Name (y5), (evaluated by accuracy)
-
-# TODO edit data-parser.py to chosen problem (pick one of the y variables to solve for)
+Mistake Identification (y1), (evaluated by Weighted F1)
+Actionability (y4), (evaluated by Weighted F1)
