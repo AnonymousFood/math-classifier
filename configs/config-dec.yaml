@@ -3,7 +3,7 @@ model_name: gpt2
 
 max_len: 256
 batch_size: 2
-epochs: 1
+epochs: 5
 learning_rate: !!float 2e-5
 
 index: 4

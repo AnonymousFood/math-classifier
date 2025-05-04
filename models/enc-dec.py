@@ -27,8 +27,8 @@ except LookupError:
 # Constants
 MAX_LEN = 512
 BATCH_SIZE = 8
-EPOCHS = 5
-LEARNING_RATE = 5e-5
+EPOCHS = 3
+LEARNING_RATE = 1e-4
 METRICS = ['Mistake_Identification', 'Mistake_Location', 'Providing_Guidance', 'Actionability']
 
 def load_and_prepare_data(data_path, tokenizer, metric_name):
@@ -184,7 +184,7 @@ def compute_metrics(eval_preds):
     decoded_labels = [l[0] for l in decoded_labels]
     
     # Map text back to IDs for evaluation
-    label_map = {"No": 0, "To some extent": 1, "Yes": 2}
+    label_map = {"No": 0, "To some extent": 2, "Yes": 2}
     
     # Normalize predictions to match exactly one of the expected values
     def normalize_prediction(pred):
@@ -254,7 +254,7 @@ def train_model_for_metric(metric_name, data_path):
         metric_for_best_model="f1_weighted",
         push_to_hub=False,
         predict_with_generate=True,
-        generation_max_length=8,
+        generation_max_length=8
     )
     
     # Create data collator for seq2seq
@@ -272,7 +272,7 @@ def train_model_for_metric(metric_name, data_path):
         eval_dataset=tokenized_datasets["validation"],
         tokenizer=tokenizer,
         data_collator=data_collator,
-        compute_metrics=compute_metrics,
+        compute_metrics=compute_metrics
     )
     
     # Train the model

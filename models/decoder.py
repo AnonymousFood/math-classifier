@@ -147,12 +147,13 @@ METRICS = ['Mistake_Identification', 'Mistake_Location', 'Providing_Guidance', '
 def train_model_for_metric(config, metric_name, data_path):
     print(f"\n=== Training decoder-only model for {metric_name} ===")
 
+
     # === Model & Tokenizer Setup ===
     model_name = config.get("model_name", "gpt2")
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "left" if "llama" in model_name.lower() else "right"
+    tokenizer.padding_side = "left"
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
@@ -160,6 +161,10 @@ def train_model_for_metric(config, metric_name, data_path):
         device_map="auto"
     )
     model.resize_token_embeddings(len(tokenizer))
+
+    # Create necessary directories for outputs
+    os.makedirs("figures", exist_ok=True)
+    os.makedirs("figures/confusion-matrices", exist_ok=True)
 
     # === Prepare Dataset ===
     df = pd.read_csv(data_path)
@@ -200,13 +205,15 @@ def train_model_for_metric(config, metric_name, data_path):
         num_train_epochs=config.get("epochs", 5),
         learning_rate=config.get("learning_rate", 5e-5),
         weight_decay=0.01,
-        save_strategy="steps",
-        #evaluation_strategy="no",
+        save_strategy="no",
         eval_strategy="steps",
-        save_total_limit=1,
-        load_best_model_at_end=True,
+        load_best_model_at_end=False,
         logging_dir="./logs",
-        logging_steps=10,
+        logging_steps=100,
+        logging_first_step=True,
+        report_to="all",
+        eval_steps=200, # Evaluate every 20 steps
+        logging_strategy="steps"
     )
 
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
@@ -223,9 +230,9 @@ def train_model_for_metric(config, metric_name, data_path):
     # === Training ===
     trainer.train()
     save_path = f"models/{metric_name}_{model_name.replace('/', '_')}_final"
-    model.save_pretrained(save_path)
-    tokenizer.save_pretrained(save_path)
-    print(f"Model for {metric_name} (decoder-only) saved.")
+    # model.save_pretrained(save_path)
+    # tokenizer.save_pretrained(save_path)
+    # print(f"Model for {metric_name} (decoder-only) saved.")
 
     # === Evaluation ===
     model.eval()
@@ -269,15 +276,10 @@ def train_model_for_metric(config, metric_name, data_path):
 
     def map_text_to_label(text):
         text = text.strip().lower()
-        if "yes" in text:
-            return label2id["Yes"]
-        elif "no" in text:
+        if "no" in text and "some" not in text and "yes" not in text:
             return label2id["No"]
-        #elif "some" in text or "extent" in text:
-        #    return label2id["To some extent"]
         else:
             return label2id["Yes"]
-            #return -1  # Unmapped
 
     y_pred = [map_text_to_label(p) for p in generated_preds]
     y_true = [map_text_to_label(t) for t in true_labels]
@@ -290,8 +292,17 @@ def train_model_for_metric(config, metric_name, data_path):
     disp.plot(cmap='Blues', xticks_rotation=45)
     plt.title("Confusion Matrix")
     plt.tight_layout()
-    plt.savefig(f"figures/tuned/confusion_matrix_{metric_name}_{config['index']}.png")
 
+    # Before saving the confusion matrix
+    cm_path = f"figures/confusion-matrices/dec_{metric_name.lower()}_cm.png"
+
+    # Make sure parent directory exists
+    os.makedirs(os.path.dirname(cm_path), exist_ok=True)
+
+    # Then save the plot
+    plt.savefig(cm_path)
+
+    os.makedirs("figures/tuned", exist_ok=True)
     report = classification_report(y_true, y_pred, target_names=labels, digits=4)
     with open(f"figures/tuned/classification_report_{metric_name}_{config['index']}.txt", "w") as f:
         f.write(report)
@@ -507,7 +518,7 @@ def main():
     for metric in selected_metrics:
         model_path = train_model_for_metric(config, metric, data_path)
         if model_path:
-            model_paths[metric] = model_path
+            model_paths[metric] = "Completed" # don't save the model!
     
     print("\n=== Training Summary ===")
     print(f"Successfully trained models for: {', '.join(model_paths.keys())}")

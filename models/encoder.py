@@ -1,4 +1,5 @@
 import argparse
+from sklearn.model_selection import train_test_split
 import yaml
 import torch
 import pandas as pd
@@ -13,8 +14,6 @@ from transformers import (
 )
 from sklearn.metrics import accuracy_score, f1_score
 from datasets import Dataset, DatasetDict
-import evaluate
-
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.metrics import classification_report
 import matplotlib.pyplot as plt
